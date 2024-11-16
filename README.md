@@ -1,4 +1,4 @@
-# Les contributeurs:
+# Les contributeurs :
 <table>
   <tr>
     <td> Nom </td>
