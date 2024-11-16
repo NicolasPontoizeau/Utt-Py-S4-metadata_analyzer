@@ -5,6 +5,7 @@
     <td> Discord </td>
     <td> GitHub </td>
   </tr>
+  
   <tr>
     <td> Nicolas Korczak </td>
     <td> KalimaroSwordkwska_93 </td>
@@ -29,11 +30,11 @@
     <td>Tendo302 </td>
   </tr>
 
-    <tr>
+  <tr>
     <td> Mohamed </td>
     <td> Mhamed </td>
     <td> MhamedUTT </td>
-  </tr>
+</tr>
 
 </table>
 
