@@ -25,7 +25,7 @@
   </tr>
 
   <tr>
-    <td> Brice </td>
+    <td> Brice Tchouasseu</td>
     <td> ThePablo_TM </td>
     <td>Tendo302 </td>
   </tr>
