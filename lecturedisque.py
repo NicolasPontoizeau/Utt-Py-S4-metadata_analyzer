@@ -1,6 +1,6 @@
 import os
 import mimetypes
-import magic
+import magic # type: ignore
 
 def lister_fichiers(racine):
     # Lister tous les fichiers dans un répertoire donné
@@ -18,6 +18,8 @@ def lister_fichiers(racine):
                 mime = magic.Magic(mime=True)
                 content_type = mime.from_file(f)
                 print(f"MIME Type (Content-Based): {content_type}")
+                if mime== "word":
+                    print("c'est microdaube")
                 
             
 # Exemple d'utilisation : lister les fichiers à partir de la racine d'un disque ou d'un répertoire
