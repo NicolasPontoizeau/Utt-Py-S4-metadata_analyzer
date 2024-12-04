@@ -1,3 +1,4 @@
+#modification 20241204
 import sqlite3
 
 # Connexion à la base de données (ou création de celle-ci si elle n'existe pas)
