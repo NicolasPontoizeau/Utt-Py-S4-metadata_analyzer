@@ -104,6 +104,7 @@ def select_directory():
         
         deep_search = deep_search_var.get()
         metadata = extract_metadata(directory, selected_types, deep_search)
+        results_text.config(state="normal")
         results_text.delete(1.0, tk.END)
         for filename, meta in metadata.items():
             results_text.insert(tk.END, f"{filename}:\n{meta}\n\n")
@@ -111,9 +112,11 @@ def select_directory():
         global current_metadata
         current_metadata = metadata
         file_menu.entryconfig("Ouvrir un répertoire", state=tk.DISABLED)
+    results_text.config(state="disabled")        
 
 # Fonction pour lancer une nouvelle analyse 
 def nouvelle_analyse():
+    results_text.config(state="normal")
     # Effacer le contenu du widget Text
     results_text.delete(1.0, tk.END)
     file_menu.entryconfig("Ouvrir un répertoire", state=tk.NORMAL)
@@ -125,9 +128,10 @@ def nouvelle_analyse():
     
     # Réinitialiser d'autres widgets si nécessaire
     #autre_widget.set("")  # Par exemple, pour un Entry ou une variable associée
-    
+    results_text.config(state="disabled")
     progress_var.set(0)
     app.update_idletasks()
+    
     
 
 # Ajouter la commande au menu
@@ -208,6 +212,7 @@ results_text.pack(expand=True, fill="both", padx=10, pady=10)
 scrollbar = tk.Scrollbar(app, orient="vertical", command=results_text.yview)
 scrollbar.pack(side="right", fill="y")
 results_text.config(yscrollcommand=scrollbar.set)
+results_text.config(state="disabled")
 
 def on_save():
     save_metadata(current_metadata)
