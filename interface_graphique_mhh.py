@@ -1,17 +1,92 @@
 import os
 import mutagen
 from PIL import Image, ExifTags
+from PIL.ExifTags import TAGS, GPSTAGS
 from PyPDF2 import PdfFileReader
 import docx
 import openpyxl
 import json
 import ffmpeg
+import pikepdf
 import tkinter as tk
 from tkinter import filedialog, messagebox, Text, ttk
 from datetime import datetime
+from mutagen import File
+from PyPDF2 import PdfReader
+from PIL.ExifTags import TAGS, GPSTAGS
+
 
 # Fonctions d'extraction des métadonnées
 # (Les fonctions `get_audio_metadata`, `get_image_metadata`, etc., restent les mêmes)
+
+
+# Fonction pour extraire les métadonnées des images 
+def get_image_metadata(image_path):
+    try:
+        # Ouvrir l'image
+        image = Image.open(image_path)
+     
+        # Métadonnées générales
+        metadata = {
+            "Format": image.format,
+            "Mode": image.mode,
+            "Taille (pixels)": image.size,
+        }
+
+        # Extraction des métadonnées EXIF
+        exif_data = image._getexif()
+        if exif_data:
+            for tag_id, value in exif_data.items():
+                tag_name = TAGS.get(tag_id, tag_id)
+                # Ignorer la partie MakerNote
+                if tag_name == "MakerNote":
+                    continue
+                if tag_name == "GPSInfo":
+                    # Extraire les informations GPS en détail
+                    gps_data = {}
+                    for gps_id, gps_value in value.items():
+                        gps_name = GPSTAGS.get(gps_id, gps_id)
+                        gps_data[gps_name] = gps_value
+                    metadata["GPSInfo"] = gps_data
+                else:
+                    metadata[tag_name] = value
+        
+        return metadata
+
+    except Exception as e:
+        return {"Erreur": str(e)}
+
+# Fonctions pour extraire des métadonnées audio MP3, FLAC, WAV, AAC, et OGG.
+def get_audio_metadata(file_path):
+    audio = File(file_path)
+    if not audio:
+        return "Fichier audio non pris en charge."
+    
+    metadata = {
+        "Titre": audio.get("TIT2", "Inconnu"),
+        "Artiste": audio.get("TPE1", "Inconnu"),
+        "Album": audio.get("TALB", "Inconnu"),
+        "Durée (s)": audio.info.length if audio.info else "Inconnue",
+        "Bitrate (kbps)": audio.info.bitrate // 1000 if audio.info and hasattr(audio.info, "bitrate") else "Inconnu"
+    }
+    return metadata
+
+# Fonction pour obtenir les métadonnées d'un PDF
+def get_pdf_metadata(file_path):
+    try:
+        reader = PdfReader(file_path)
+        metadata = reader.metadata
+        return {
+            "Titre": metadata.title if metadata.title else "Inconnu",
+            "Auteur": metadata.author if metadata.author else "Inconnu",
+            "Sujet": metadata.subject if metadata.subject else "Inconnu",
+            "Producteur": metadata.producer if metadata.producer else "Inconnu",
+            "Création": metadata.get("/CreationDate", "Inconnue"),
+            "Modification": metadata.get("/ModDate", "Inconnue"),
+        }
+    except Exception as e:
+        return {"Erreur": str(e)}
+
 
 # Fonction pour extraire les métadonnées
 def extract_metadata(directory, selected_types, deep_search=False):
@@ -89,18 +164,32 @@ def select_directory():
             return
         
         selected_types = []
-        if audio_var.get():
-            selected_types.append("audio")
-        if image_var.get():
-            selected_types.append("image")
-        if pdf_var.get():
-            selected_types.append("pdf")
-        if word_var.get():
-            selected_types.append("word")
-        if excel_var.get():
-            selected_types.append("excel")
-        if video_var.get():
-            selected_types.append("video")
+        #if audio_var.get():
+        selected_types.append("audio")
+        #if image_var.get():
+        selected_types.append("image")
+        #if pdf_var.get():
+        #    selected_types.append("pdf")
+        #if word_var.get():
+        #    selected_types.append("word")
+        #if excel_var.get():
+        #    selected_types.append("excel")
+        #if video_var.get():
+        selected_types.append("video")
+        #selected_types = []
+        #if audio_var.get():
+        selected_types.append("audio")
+        #if image_var.get():
+        selected_types.append("image")
+        #if pdf_var.get():
+        selected_types.append("pdf")
+        #if word_var.get():
+        #    selected_types.append("word")
+        #if excel_var.get():
+        #    selected_types.append("excel")
+        #if video_var.get():
+        #    selected_types.append("video")
+        
         
         deep_search = deep_search_var.get()
         metadata = extract_metadata(directory, selected_types, deep_search)
@@ -162,6 +251,11 @@ data_menu.add_separator()
 data_menu.add_command(label="Statistique", command="")
 menu_bar.add_cascade(label="Données", menu=data_menu)
 
+menu_export=tk.Menu(data_menu, tearoff=0)
+menu_export.add_command(label="CSV", command="")
+menu_export.add_command(label="DUMP", command="")
+data_menu.add_cascade(label="Export",menu = menu_export)
+
 
 # Menu "Aide"
 help_menu = tk.Menu(menu_bar, tearoff=0)
@@ -183,19 +277,7 @@ word_var = tk.BooleanVar()
 excel_var = tk.BooleanVar()
 video_var = tk.BooleanVar()
 deep_search_var = tk.BooleanVar(value = True)
-#deep_search_var = True
-#tk.Checkbutton(options_frame, text="Audio", variable=audio_var).grid(row=0, column=0)
-#tk.Checkbutton(options_frame, text="Image", variable=image_var).grid(row=0, column=1)
-#tk.Checkbutton(options_frame, text="PDF", variable=pdf_var).grid(row=0, column=2)
-#tk.Checkbutton(options_frame, text="Word", variable=word_var).grid(row=1, column=0)
-#tk.Checkbutton(options_frame, text="Excel", variable=excel_var).grid(row=1, column=1)
-#tk.Checkbutton(options_frame, text="Vidéo", variable=video_var).grid(row=1, column=2)
 tk.Checkbutton(options_frame, text="Activer la recherche approfondie", variable=deep_search_var)
-#checkbox1.pack(padx=10, pady=10)
-#checkbox1.grid(row=2, column=0, columnspan=3)
-#checkbox1 = tk.Checkbutton(options_frame, text="Recherche en profondeur", variable=deep_search_var).grid(row=2, column=0, columnspan=3)
-#checkbox1.pack_forget()
-
 progress_var = tk.DoubleVar()
 progress_bar = ttk.Progressbar(app, variable=progress_var, maximum=100)
 progress_bar.pack(side ="bottom", fill="x", padx=10, pady=10)
