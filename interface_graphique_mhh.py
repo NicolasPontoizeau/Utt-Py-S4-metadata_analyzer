@@ -16,6 +16,10 @@ from PyPDF2 import PdfReader
 from PIL.ExifTags import TAGS, GPSTAGS
 
 
+# ajouter fonction format date 
+
+
+
 # Fonctions d'extraction des métadonnées
 # (Les fonctions `get_audio_metadata`, `get_image_metadata`, etc., restent les mêmes)
 
@@ -221,7 +225,26 @@ def nouvelle_analyse():
     progress_var.set(0)
     app.update_idletasks()
     
+# Fonction export csv 
+def export_csv():
+    messagebox.showwarning("en construction", "Fonction en cours de construction ") 
     
+# Fonction export dump 
+def export_dump():
+    messagebox.showwarning("en construction", "Fonction en cours de construction ") 
+    
+# Fonction chargement des données depuis json  
+def chargement():
+    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+
+# Fonction comparer entre deux resultats 
+def compare_result():
+    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+    
+# Fonction statistique à édéfinir  
+def stat_result():
+    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+
 
 # Ajouter la commande au menu
 #file_menu.add_command(label="Nouvelle analyse", command=nouvelle_analyse)
@@ -245,15 +268,15 @@ menu_bar.add_cascade(label="Fichier", menu=file_menu)
 
 # Menu "Données"
 data_menu = tk.Menu(menu_bar, tearoff=0)
-data_menu.add_command(label="Charger ...", command="")
-data_menu.add_command(label="Comparer ...", command="")
+data_menu.add_command(label="Charger ...", command=chargement)
+data_menu.add_command(label="Comparer ...", command=compare_result)
 data_menu.add_separator()
-data_menu.add_command(label="Statistique", command="")
+data_menu.add_command(label="Statistique", command=stat_result)
 menu_bar.add_cascade(label="Données", menu=data_menu)
 
 menu_export=tk.Menu(data_menu, tearoff=0)
-menu_export.add_command(label="CSV", command="")
-menu_export.add_command(label="DUMP", command="")
+menu_export.add_command(label="CSV", command=export_csv)
+menu_export.add_command(label="DUMP", command=export_dump)
 data_menu.add_cascade(label="Export",menu = menu_export)
 
 
