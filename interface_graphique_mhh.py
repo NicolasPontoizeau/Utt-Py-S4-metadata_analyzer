@@ -91,6 +91,10 @@ def get_pdf_metadata(file_path):
     except Exception as e:
         return {"Erreur": str(e)}
 
+# Fonction pour obtenir les métadonnées d'un doc
+def get_docx_metadata(file_path):
+    messagebox.showwarning("en construction", "Fonction en cours de construction ") 
+    
 
 # Fonction pour extraire les métadonnées
 def extract_metadata(directory, selected_types, deep_search=False):
