@@ -7,8 +7,8 @@
   </tr>
   
   <tr>
-    <td> Nicolas Korczak </td>
-    <td> KalimaroSwordkwska_93 </td>
+    <td> Nicolas K. </td>
+    <td> Nicolas K. </td>
     <td> easyit75 </td>
   </tr>
   
