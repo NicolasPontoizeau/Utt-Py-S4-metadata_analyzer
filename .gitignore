@@ -4,3 +4,8 @@ __pycache__/
 env/
 *.log
 *.odt#
+metadata_results_20250117_230036.json
+metadata_results_20250117_230047.json
+metadata_results_20250117_230314.json
+requirements.txt
+mime_file_paths.csv
