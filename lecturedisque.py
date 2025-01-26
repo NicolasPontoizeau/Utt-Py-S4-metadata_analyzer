@@ -1,6 +1,7 @@
 import os
 import mimetypes
-import magic 
+import magic  # type: ignore
+
 def lister_fichiers(racine):
     # Lister tous les fichiers dans un répertoire donné
     for dossier, sous_dossiers, fichiers in os.walk(racine):
