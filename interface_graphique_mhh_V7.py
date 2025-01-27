@@ -34,6 +34,7 @@ import base64
 from datetime import datetime
 
 
+# NPO
 def convert_json_to_csv(path_to_json):
     # input_file_path = "/home/nico/Dropbox/python/repo_git/Utt-Py-S4-metadata_analyzer/metadata_results_20250126_191931.json"
     input_file_path = path_to_json
@@ -46,7 +47,7 @@ def convert_json_to_csv(path_to_json):
     with open(output_file_path, "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         # Write headers
-        writer.writerow(["Key", "Value"])
+        # writer.writerow(["Key", "Value"])
         # Write rows
         for key, value in data.items():
             writer.writerow([key, value])
