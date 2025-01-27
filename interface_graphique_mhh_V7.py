@@ -326,15 +326,14 @@ def extract_ms_office_metadata(file_path, ext):
             #         metadata = {prop.Name: prop.Value for prop in pres.BuiltInDocumentProperties}
             #         pres.Close()
 
-            # Quitter l'application
-            app.Quit()
+                # # Quitter l'application
+                # app.Quit()
 
-        else:  # Fichier non pris en charge
-            metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
+            # else:  # Fichier non pris en charge
+            #     metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
 
     except Exception as e:
         metadata = {"Erreur": f"Erreur lors du traitement de {file_path} : {str(e)}"}
-
     return metadata
 
 def extract_text_metadata(file_path):
