@@ -6,7 +6,8 @@ import mimetypes
 from PIL import Image, ExifTags
 from PIL.ExifTags import TAGS, GPSTAGS
 from PyPDF2 import PdfFileReader
-import docx
+#NPO
+from docx import Document
 import openpyxl
 import json
 import ffmpeg
@@ -34,25 +35,42 @@ import base64
 from datetime import datetime
 
 
+
 # NPO
 def convert_json_to_csv(path_to_json):
     # input_file_path = "/home/nico/Dropbox/python/repo_git/Utt-Py-S4-metadata_analyzer/metadata_results_20250126_191931.json"
     input_file_path = path_to_json
     output_file_path = input_file_path.replace(".json", ".csv")
 
-    with open(input_file_path, "r") as json_file:
-        data = json.load(json_file)
+    try:
+        with open(input_file_path, "r") as json_file:
+            data = json.load(json_file)
+            
+        # NPO le format json n'est pas un json correct car il ne respecte pas le fait qu'un json est une liste de dictionnaire
+        # # Vérifier que le JSON est une liste de dictionnaires
+        # if not isinstance(data, list):
+        #     raise ValueError("Le fichier JSON doit contenir une liste de dictionnaires.")
 
-    # Flatten the data if necessary and write to a CSV file
-    with open(output_file_path, "w", newline="") as csv_file:
-        writer = csv.writer(csv_file)
-        # Write headers
-        # writer.writerow(["Key", "Value"])
-        # Write rows
-        for key, value in data.items():
-            writer.writerow([key, value])
 
-    output_file_path
+        # Flatten the data if necessary and write to a CSV file
+        with open(output_file_path, "w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            # Write headers
+            # writer.writerow(["Key", "Value"])
+            # Write rows
+            for key, value in data.items():
+                writer.writerow([key, value])
+    
+        # Afficher un message de succès
+        messagebox.showinfo("Succès", f"Fichier CSV enregistré avec succès :\n{output_file_path}")
+        print(f"fichier {path_to_json} converti en {output_file_path}")
+        
+    except json.JSONDecodeError:
+        messagebox.showerror("Erreur", "Le fichier JSON sélectionné est invalide.")
+    except ValueError as ve:
+        messagebox.showerror("Erreur", str(ve))
+    except Exception as e:
+        messagebox.showerror("Erreur", f"Une erreur inattendue est survenue : {e}")
 
 
 def convert_to_serializable(data):
@@ -233,25 +251,25 @@ def extract_ms_office_metadata(file_path, ext):
 
     try:
         # NPO
-        # if ext == ".docx":  # Traitement pour les fichiers Word modernes (.docx)
-        #     # NPO
-        #     # doc = Document(file_path)
-        #     # core_properties = doc.core_properties
-        #     metadata = {
-        #         "Author": core_properties.author,
-        #         "Title": core_properties.title,
-        #         "Created Date": core_properties.created,
-        #         "Last Modified Date": core_properties.modified,
-        #         "Last Modified By": core_properties.last_modified_by,
-        #         "Category": core_properties.category,
-        #         "Keywords": core_properties.keywords,
-        #         "Comments": core_properties.comments,
-        #         "Revision": core_properties.revision,
-        #         "Content Status": core_properties.content_status,
-        #         "Identifier": core_properties.identifier,
-        #         "Language": core_properties.language,
-        #         "Version": core_properties.version
-        #     }
+        if ext == ".docx":  # Traitement pour les fichiers Word modernes (.docx)
+            # NPO
+            doc = Document(file_path)
+            core_properties = doc.core_properties
+            metadata = {
+                "Author": core_properties.author,
+                "Title": core_properties.title,
+                "Created Date": core_properties.created,
+                "Last Modified Date": core_properties.modified,
+                "Last Modified By": core_properties.last_modified_by,
+                "Category": core_properties.category,
+                "Keywords": core_properties.keywords,
+                "Comments": core_properties.comments,
+                "Revision": core_properties.revision,
+                "Content Status": core_properties.content_status,
+                "Identifier": core_properties.identifier,
+                "Language": core_properties.language,
+                "Version": core_properties.version
+            }
 
         # el
         if ext == ".pptx":  # Traitement pour les fichiers PowerPoint modernes (.pptx)
@@ -318,11 +336,6 @@ def extract_ms_office_metadata(file_path, ext):
         metadata = {"Erreur": f"Erreur lors du traitement de {file_path} : {str(e)}"}
 
     return metadata
-
-
-# def get_docx_metadata(file_path):
-#    messagebox.showwarning("en construction", "Fonction en cours de construction ")
-
 
 def extract_text_metadata(file_path):
     metadata = {}
@@ -463,6 +476,10 @@ def save_metadata(metadata):
                 messagebox.showinfo(
                     "Succès", f"Les métadonnées ont été enregistrées dans {output_file}"
                 )
+            # npo
+            # activer l'export csv
+            menu_export.entryconfig("CSV", state="normal")
+            
         except Exception as e:
             messagebox.showerror(
                 "Erreur", f"Erreur lors de la sauvegarde des métadonnées : {str(e)}"
@@ -531,7 +548,7 @@ def nouvelle_analyse():
     progress_var.set(0)
     app.update_idletasks()
 
-
+# NPO
 # Fonction export csv
 def export_csv():
     # messagebox.showwarning("en construction", "Fonction en cours de construction ")
@@ -546,11 +563,36 @@ def export_csv():
 def export_dump():
     messagebox.showwarning("en construction", "Fonction en cours de construction ")
 
-
+# NPO
 # Fonction chargement des données depuis json
 def chargement():
-    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+    global path_to_json 
+    
+    file_path = filedialog.askopenfilename(
+        title="Sélectionner un fichier JSON",
+        filetypes=[("Fichiers JSON", "*.json")]
+    )
+    if not file_path:
+        return  # L'utilisateur a annulé
 
+    try:
+        # Charger le contenu du fichier JSON
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        # Nettoyer le contenu actuel du widget Text
+        results_text.delete("1.0", tk.END)
+
+        # Afficher les données JSON dans le widget Text
+        formatted_json = json.dumps(data, indent=4, ensure_ascii=False)
+        results_text.insert(tk.END, formatted_json)
+        path_to_json = file_path
+        print(f"Chemin du fichier sélectionné : {path_to_json}")
+        
+        # activer l'export csv
+        menu_export.entryconfig("CSV", state="normal")
+    except Exception as e:
+        messagebox.showerror("Erreur", f"Impossible de lire le fichier JSON : {e}")
 
 # Fonction comparer entre deux resultats
 def compare_result():
@@ -591,7 +633,7 @@ data_menu.add_command(label="Statistique", command=stat_result)
 menu_bar.add_cascade(label="Données", menu=data_menu)
 
 menu_export = tk.Menu(data_menu, tearoff=0)
-menu_export.add_command(label="CSV", command=export_csv)
+menu_export.add_command(label="CSV", command=export_csv,state="disabled")
 menu_export.add_command(label="DUMP", command=export_dump)
 data_menu.add_cascade(label="Export", menu=menu_export)
 
