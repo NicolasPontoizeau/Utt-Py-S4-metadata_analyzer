@@ -250,7 +250,7 @@ def extract_ms_office_metadata(file_path, ext):
     metadata = {}
 
     try:
-        # NPO
+        # NPO 
         if ext == ".docx":  # Traitement pour les fichiers Word modernes (.docx)
             # NPO
             doc = Document(file_path)
@@ -307,7 +307,7 @@ def extract_ms_office_metadata(file_path, ext):
                 "Version": properties.version,
                 "Identifier": properties.identifier,
             }
-            # NPO
+            # NPO alternative GPT to be tested : To extract metadata from old Word documents with the .doc extension in Python on Linux, you can use the olefile library, which is designed for parsing OLE (Object Linking and Embedding) compound files used in older Microsoft Office formats.
             # elif ext in [".doc", ".xls", ".ppt"]:  # Traitement pour les fichiers Office anciens via COM
             #     app_type = {"doc": "Word", "xls": "Excel", "ppt": "PowerPoint"}[ext[1:]]
             #     app = win32com.client.Dispatch(f"{app_type}.Application")
@@ -545,6 +545,10 @@ def nouvelle_analyse():
     # autre_widget.set("")  # Par exemple, pour un Entry ou une variable associée
     results_text.config(state="disabled")
     progress_var.set(0)
+    
+    # NPO
+    # desactiver l'export csv
+    menu_export.entryconfig("CSV", state="disabled")
     app.update_idletasks()
 
 # NPO
@@ -566,6 +570,10 @@ def export_dump():
 # Fonction chargement des données depuis json
 def chargement():
     global path_to_json 
+
+    # Nettoyer le contenu actuel du widget Text
+    results_text.delete("1.0", tk.END)
+    results_text.config(state="normal")    
     
     file_path = filedialog.askopenfilename(
         title="Sélectionner un fichier JSON",
@@ -574,19 +582,29 @@ def chargement():
     if not file_path:
         return  # L'utilisateur a annulé
 
+
     try:
-        # Charger le contenu du fichier JSON
+        
+        # Ouvrir et lire le fichier ligne par ligne
         with open(file_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
+            for line in file:
+                results_text.insert(tk.END, line)  # Insérer chaque ligne dans le Text
+            
+        
+        
+        # # Charger le contenu du fichier JSON
+        # with open(file_path, "r", encoding="utf-8") as file:
+        #     data = json.load(file)
 
-        # Nettoyer le contenu actuel du widget Text
-        results_text.delete("1.0", tk.END)
 
-        # Afficher les données JSON dans le widget Text
-        formatted_json = json.dumps(data, indent=4, ensure_ascii=False)
-        results_text.insert(tk.END, formatted_json)
+
+        # # Afficher les données JSON dans le widget Text
+        # formatted_json = json.dumps(data, indent=4, ensure_ascii=False)
+        # results_text.insert(tk.END, formatted_json)
         path_to_json = file_path
-        print(f"Chemin du fichier sélectionné : {path_to_json}")
+        results_text.config(state="disabled")    
+
+        print(f"fichier .json sélectionné : {path_to_json} chargé")
         
         # activer l'export csv
         menu_export.entryconfig("CSV", state="normal")
