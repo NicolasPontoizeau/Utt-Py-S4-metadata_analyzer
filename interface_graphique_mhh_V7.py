@@ -336,6 +336,20 @@ def extract_ms_office_metadata(file_path, ext):
         
         # NPO Traitement pour les fichiers Office anciens via ole et qui fonctionne sous linux   
         elif ext in [".doc", ".xls", ".ppt"]:  # NPO pas reussi a extraire des meta sur des fichiers doc xls ppt générés par open office. Je ne sais si le pb vient des fichiers ou du code
+            
+            # if olefile.isOleFile(file_path):
+            #     ole = olefile.OleFileIO(file_path)
+            #     metadata = ole.get_metadata()
+            #     print("Title:", metadata.title)
+            #     print("Author:", metadata.author)
+            #     print("Creation Date:", metadata.create_time)
+            #     print("Last Saved By:", metadata.last_saved_by)
+            #     print("Last Saved Date:", metadata.last_saved_time)
+            #     ole.close()
+            # else:
+            #     print("This is not a valid OLE file.")
+
+            
             ole = olefile.OleFileIO(file_path)
             # Check if metadata exists
             if ole.exists('SummaryInformation'):
@@ -606,9 +620,8 @@ def chargement():
 
     try:
         # Nettoyer le contenu actuel du widget Text
-        results_text.delete("1.0", tk.END)
         results_text.config(state="normal")    
-
+        results_text.delete("1.0", tk.END)
         
         # Ouvrir et lire le fichier ligne par ligne
         with open(file_path, "r", encoding="utf-8") as file:
@@ -725,12 +738,13 @@ progress_var.trace(
     ),
 )
 
-results_text = Text(app, wrap="word", height=10)
+results_text = Text(app, wrap="word", height=10, state="disabled")
 results_text.pack(expand=True, fill="both", padx=10, pady=10)
 scrollbar = tk.Scrollbar(app, orient="vertical", command=results_text.yview)
 scrollbar.pack(side="right", fill="y")
 results_text.config(yscrollcommand=scrollbar.set)
-results_text.config(state="disabled")
+# results_text.config(state="disabled")
+results_text.pack(expand=True, fill="both")
 
 
 def on_save():
