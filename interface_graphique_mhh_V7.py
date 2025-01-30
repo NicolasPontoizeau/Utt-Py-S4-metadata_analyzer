@@ -23,7 +23,9 @@ from PIL.TiffImagePlugin import IFDRational
 from pptx import Presentation
 import warnings
 
+#NPO
 # import win32com.client
+import olefile
 from openpyxl import load_workbook
 from datetime import datetime
 import hashlib
@@ -329,8 +331,30 @@ def extract_ms_office_metadata(file_path, ext):
                 # # Quitter l'application
                 # app.Quit()
 
-            # else:  # Fichier non pris en charge
-            #     metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
+                    # else:  # Fichier non pris en charge
+                    #     metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
+        
+        # NPO Traitement pour les fichiers Office anciens via ole et qui fonctionne sous linux   
+        elif ext in [".doc", ".xls", ".ppt"]:  # NPO pas reussi a extraire des meta sur des fichiers doc xls ppt générés par open office. Je ne sais si le pb vient des fichiers ou du code
+            ole = olefile.OleFileIO(file_path)
+            # Check if metadata exists
+            if ole.exists('SummaryInformation'):
+                meta = ole.get_metadata()
+                
+                # Extract common metadata fields
+                metadata = {
+                    "Title": meta.title,
+                    "Subject": meta.subject,
+                    "Author": meta.author,
+                    "Last Modified By": meta.last_saved_by,
+                    "Created Time": meta.create_time,
+                    "Modified Time": meta.last_saved_time,
+                    "Keywords": meta.keywords,
+                    "Comments": meta.comments,
+                    "Category": meta.category,
+                }
+            else:
+                metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
 
     except Exception as e:
         metadata = {"Erreur": f"Erreur lors du traitement de {file_path} : {str(e)}"}
@@ -571,9 +595,7 @@ def export_dump():
 def chargement():
     global path_to_json 
 
-    # Nettoyer le contenu actuel du widget Text
-    results_text.delete("1.0", tk.END)
-    results_text.config(state="normal")    
+
     
     file_path = filedialog.askopenfilename(
         title="Sélectionner un fichier JSON",
@@ -582,8 +604,11 @@ def chargement():
     if not file_path:
         return  # L'utilisateur a annulé
 
-
     try:
+        # Nettoyer le contenu actuel du widget Text
+        results_text.delete("1.0", tk.END)
+        results_text.config(state="normal")    
+
         
         # Ouvrir et lire le fichier ligne par ligne
         with open(file_path, "r", encoding="utf-8") as file:
@@ -608,6 +633,7 @@ def chargement():
         
         # activer l'export csv
         menu_export.entryconfig("CSV", state="normal")
+        app.update_idletasks()
     except Exception as e:
         messagebox.showerror("Erreur", f"Impossible de lire le fichier JSON : {e}")
 
