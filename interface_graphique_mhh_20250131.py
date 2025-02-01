@@ -6,7 +6,8 @@ import mimetypes
 from PIL import Image, ExifTags
 from PIL.ExifTags import TAGS, GPSTAGS
 from PyPDF2 import PdfFileReader
-import docx
+#NPO
+from docx import Document
 import openpyxl
 import json
 import ffmpeg
@@ -21,10 +22,50 @@ from PIL.ExifTags import TAGS, GPSTAGS
 from PIL.TiffImagePlugin import IFDRational
 from pptx import Presentation
 import warnings
-import win32com.client
+#NPO
+# import win32com.client
+import olefile
 from openpyxl import load_workbook
 from datetime import datetime
 import hashlib
+
+
+# NPO
+def convert_json_to_csv(path_to_json):
+    # input_file_path = "/home/nico/Dropbox/python/repo_git/Utt-Py-S4-metadata_analyzer/metadata_results_20250126_191931.json"
+    input_file_path = path_to_json
+    output_file_path = input_file_path.replace(".json", ".csv")
+
+    try:
+        with open(input_file_path, "r") as json_file:
+            data = json.load(json_file)
+            
+        # NPO le format json n'est pas un json correct car il ne respecte pas le fait qu'un json est une liste de dictionnaire
+        # # Vérifier que le JSON est une liste de dictionnaires
+        # if not isinstance(data, list):
+        #     raise ValueError("Le fichier JSON doit contenir une liste de dictionnaires.")
+
+
+        # Flatten the data if necessary and write to a CSV file
+        with open(output_file_path, "w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            # Write headers
+            # writer.writerow(["Key", "Value"])
+            # Write rows
+            for key, value in data.items():
+                writer.writerow([key, value])
+    
+        # Afficher un message de succès
+        messagebox.showinfo("Succès", f"Fichier CSV enregistré avec succès :\n{output_file_path}")
+        print(f"fichier {path_to_json} converti en {output_file_path}")
+        
+    except json.JSONDecodeError:
+        messagebox.showerror("Erreur", "Le fichier JSON sélectionné est invalide.")
+    except ValueError as ve:
+        messagebox.showerror("Erreur", str(ve))
+    except Exception as e:
+        messagebox.showerror("Erreur", f"Une erreur inattendue est survenue : {e}")
+
 
 
 # Fonction pour convertir les métadonnées
@@ -260,28 +301,48 @@ def extract_ms_office_metadata(file_path, ext):
             }
 
         elif ext in [".doc", ".xls", ".ppt"]:  # Traitement pour les fichiers Office anciens via COM
-            app_type = {"doc": "Word", "xls": "Excel", "ppt": "PowerPoint"}[ext[1:]]
-            app = win32com.client.Dispatch(f"{app_type}.Application")
+            # NPO dependance pywin32 : ne fonctionne pas sous linux
+        #     app_type = {"doc": "Word", "xls": "Excel", "ppt": "PowerPoint"}[ext[1:]]
+        #     app = win32com.client.Dispatch(f"{app_type}.Application")
 
-            # Ouvrir le fichier (Word, Excel ou PowerPoint)
-            if app_type == "Word":
-                doc = app.Documents.Open(file_path)
-                metadata = {prop.Name: prop.Value for prop in doc.BuiltInDocumentProperties}
-                doc.Close()
-            elif app_type == "Excel":
-                wb = app.Workbooks.Open(file_path)
-                metadata = {prop.Name: prop.Value for prop in wb.BuiltinDocumentProperties}
-                wb.Close()
-            elif app_type == "PowerPoint":
-                pres = app.Presentations.Open(file_path)
-                metadata = {prop.Name: prop.Value for prop in pres.BuiltInDocumentProperties}
-                pres.Close()
+        #     # Ouvrir le fichier (Word, Excel ou PowerPoint)
+        #     if app_type == "Word":
+        #         doc = app.Documents.Open(file_path)
+        #         metadata = {prop.Name: prop.Value for prop in doc.BuiltInDocumentProperties}
+        #         doc.Close()
+        #     elif app_type == "Excel":
+        #         wb = app.Workbooks.Open(file_path)
+        #         metadata = {prop.Name: prop.Value for prop in wb.BuiltinDocumentProperties}
+        #         wb.Close()
+        #     elif app_type == "PowerPoint":
+        #         pres = app.Presentations.Open(file_path)
+        #         metadata = {prop.Name: prop.Value for prop in pres.BuiltInDocumentProperties}
+        #         pres.Close()
 
-            # Quitter l'application
-            app.Quit()
+        #     # Quitter l'application
+        #     app.Quit()
 
-        else:  # Fichier non pris en charge
-            metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
+        # else:  # Fichier non pris en charge
+        #     metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
+            ole = olefile.OleFileIO(file_path)
+            # Check if metadata exists
+            if ole.exists('SummaryInformation'):
+                meta = ole.get_metadata()
+                
+                # Extract common metadata fields
+                metadata = {
+                    "Title": meta.title,
+                    "Subject": meta.subject,
+                    "Author": meta.author,
+                    "Last Modified By": meta.last_saved_by,
+                    "Created Time": meta.create_time,
+                    "Modified Time": meta.last_saved_time,
+                    "Keywords": meta.keywords,
+                    "Comments": meta.comments,
+                    "Category": meta.category,
+                }
+            else:
+                metadata = {"Erreur": f"Type de fichier non pris en charge : {ext}"}
 
     except Exception as e:
         metadata = {"Erreur": f"Erreur lors du traitement de {file_path} : {str(e)}"}
@@ -382,7 +443,6 @@ def is_notempty():
     
 # Fonction pour sauvegarder les métadonnées
 def save_metadata(metadata):
-    
     if not is_notempty():
         messagebox.showwarning("Attention", "Aucun résultat à enregistrer. La liste est vide.")
         save_button.config(state="disabled")  # Désactive le bouton "Enregistrer"
@@ -399,8 +459,15 @@ def save_metadata(metadata):
             with open(output_file, 'w') as f:
                 json.dump(metadata1, f, indent=4)
                 messagebox.showinfo("Succès", f"Les métadonnées ont été enregistrées dans {output_file}")
+                
+            # npo
+            # activer l'export csv
+            menu_export.entryconfig("CSV", state="normal")
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de la sauvegarde des métadonnées : {str(e)}")
+        
+        # NPO return the path to json file in case we need to export it to csv
+        return output_file
 
 
 # Liste des extensions disponibles dans le dossier selectionner 
@@ -624,19 +691,69 @@ def nouvelle_analyse():
     #autre_widget.set("")  # Par exemple, pour un Entry ou une variable associée
     results_text.config(state="disabled")
     progress_var.set(0)
+    # NPO
+    # desactiver l'export csv
+    menu_export.entryconfig("CSV", state="disabled")
     app.update_idletasks()
     
 # Fonction export csv 
+# NPO
+# Fonction export csv
 def export_csv():
-    messagebox.showwarning("en construction", "Fonction en cours de construction ") 
+    # messagebox.showwarning("en construction", "Fonction en cours de construction ")
+    # Load the JSON data
+    if path_to_json != "":
+        convert_json_to_csv(path_to_json)
+    else:
+        print("Le fichier json doit etre enregistré avant de le convertir en csv")
     
 # Fonction export dump 
 def export_dump():
     messagebox.showwarning("en construction", "Fonction en cours de construction ") 
     
 # Fonction chargement des données depuis json  
+# NPO
+# Fonction chargement des données depuis json
 def chargement():
-    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+    global path_to_json 
+    file_path = filedialog.askopenfilename(
+        title="Sélectionner un fichier JSON",
+        filetypes=[("Fichiers JSON", "*.json")]
+    )
+    if not file_path:
+        return  # L'utilisateur a annulé
+
+    try:
+        # Nettoyer le contenu actuel du widget Text
+        results_text.config(state="normal")    
+        results_text.delete("1.0", tk.END)
+        
+        # Ouvrir et lire le fichier ligne par ligne
+        with open(file_path, "r", encoding="utf-8") as file:
+            for line in file:
+                results_text.insert(tk.END, line)  # Insérer chaque ligne dans le Text
+            
+        
+        
+        # # Charger le contenu du fichier JSON
+        # with open(file_path, "r", encoding="utf-8") as file:
+        #     data = json.load(file)
+
+
+
+        # # Afficher les données JSON dans le widget Text
+        # formatted_json = json.dumps(data, indent=4, ensure_ascii=False)
+        # results_text.insert(tk.END, formatted_json)
+        path_to_json = file_path
+        results_text.config(state="disabled")    
+
+        print(f"fichier .json sélectionné : {path_to_json} chargé")
+        
+        # activer l'export csv
+        menu_export.entryconfig("CSV", state="normal")
+        app.update_idletasks()
+    except Exception as e:
+        messagebox.showerror("Erreur", f"Impossible de lire le fichier JSON : {e}")
 
 # Fonction comparer entre deux resultats 
 def compare_result():
@@ -706,6 +823,8 @@ word_var = tk.BooleanVar()
 excel_var = tk.BooleanVar()
 video_var = tk.BooleanVar()
 deep_search_var = tk.BooleanVar(value = True)
+# NPO cette variable conserve le chemin du fichier json en cours une fois cliqué sur le bouton enregistré
+path_to_json=""
 tk.Checkbutton(options_frame, text="Activer la recherche approfondie", variable=deep_search_var)
 progress_var = tk.DoubleVar()
 progress_bar = ttk.Progressbar(app, variable=progress_var, maximum=100)
@@ -718,15 +837,17 @@ progress_var.trace("w", lambda *args: progress_label.config(
     text=f"Progression : {int(progress_var.get())} %"
 ))
 
-results_text = Text(app, wrap="word", height=10)
+results_text = Text(app, wrap="word", height=10, state="disabled")
 results_text.pack(expand=True, fill="both", padx=10, pady=10)
 scrollbar = tk.Scrollbar(app, orient="vertical", command=results_text.yview)
 scrollbar.pack(side="right", fill="y")
 results_text.config(yscrollcommand=scrollbar.set)
-results_text.config(state="disabled")
+# results_text.config(state="disabled")
 
 def on_save():
-    save_metadata(current_metadata)
+    # NPO
+    global path_to_json
+    path_to_json = save_metadata(current_metadata)
 
 save_button = tk.Button(app, text="Enregistrer", command=on_save, state="disabled")
 save_button.pack(pady=5)
