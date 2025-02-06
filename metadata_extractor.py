@@ -28,6 +28,12 @@ from openpyxl import load_workbook
 from datetime import datetime
 import hashlib
 import csv
+from collections import Counter
+import logging
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+
+
 
 # NPO
 def convert_json_to_csv(path_to_json):
@@ -733,6 +739,50 @@ def show_results_window(file1, file2, added_files, removed_files, modified_files
     export_button.pack(pady=10)
 
 
+def show_results_window_stat(file1, file2):
+    """Affiche les résultats dans une nouvelle fenêtre Tkinter."""
+    result_window = tk.Toplevel(app)
+    result_window.title("Résultats de la comparaison")
+    result_window.geometry("700x500")
+    result_window.grab_set()  # Bloque l'interaction avec la fenêtre principale
+
+    text_area = scrolledtext.ScrolledText(result_window, wrap="word", height=25, width=80)
+    text_area.pack(expand=True, fill="both", padx=10, pady=10)
+
+    text_area.insert(tk.END, f"📌 Comparaison entre :\n{file1}\n{file2}\n\n")
+
+    if added_files:
+        text_area.insert(tk.END, "✅ Fichiers ajoutés :\n" + "\n".join(added_files) + "\n\n")
+
+    if removed_files:
+        text_area.insert(tk.END, "❌ Fichiers supprimés :\n" + "\n".join(removed_files) + "\n\n")
+
+    if modified_files:
+        text_area.insert(tk.END, "🔄 Fichiers modifiés :\n")
+        for file, changes in modified_files.items():
+            text_area.insert(tk.END, f"📂 {file}\n")
+            for key, value in changes.items():
+                text_area.insert(tk.END, f"   🔹 {key} :\n")
+                text_area.insert(tk.END, f"      ➖ Ancienne valeur : {value['Ancienne valeur']}\n")
+                text_area.insert(tk.END, f"      ➕ Nouvelle valeur : {value['Nouvelle valeur']}\n\n")
+
+    if renamed_files:
+        text_area.insert(tk.END, "🔀 Fichiers renommés :\n")
+        for old_name, new_name in renamed_files:
+            text_area.insert(tk.END, f"   🔄 {old_name} → {new_name}\n")
+        text_area.insert(tk.END, "\n")
+
+    if not (added_files or removed_files or modified_files or renamed_files):
+        text_area.insert(tk.END, "✅ Aucune différence détectée.\n")
+
+    text_area.config(state="disabled")
+
+    # Bouton pour exporter en CSV
+    export_button = tk.Button(result_window, text="Exporter en CSV",
+                              command=lambda: export_to_csv(added_files, removed_files, modified_files, renamed_files))
+    export_button.pack(pady=10)
+
+
 def export_to_csv(added, removed, modified, renamed):
     """Exporte les résultats de la comparaison en CSV."""
     file_path = filedialog.asksaveasfilename(defaultextension=".csv",
@@ -765,8 +815,178 @@ def export_to_csv(added, removed, modified, renamed):
 
 # Fonction statistique à édéfinir  
 def stat_result():
-    messagebox.showwarning("en construction", "Fonction en cours de construction ")
+ # Exécution du script
+    file_path = filedialog.askopenfilename(
+        title="Sélectionner un fichier JSON",
+        filetypes=[("Fichiers JSON", "*.json")]
+    )
+    files_data, json_file_path = load_json(file_path)
     
+    if files_data is not None:
+        display_results(files_data, json_file_path)        
+    else:
+        print(" Erreur lors du chargement du fichier JSON. Arrêt du programme.")
+    
+
+# Charger le fichier JSON
+def load_json(file_path):  
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            return json.load(file), file_path
+    except FileNotFoundError:
+        print(f" Fichier introuvable: {file_path}. Vérifiez le chemin et réessayez.")
+        return None, None
+    except json.JSONDecodeError:
+        print(f" Erreur lors du chargement du fichier JSON: {file_path}. Vérifiez qu'il est valide.")
+        return None, None
+    
+
+from datetime import datetime, timezone
+import logging
+
+def parse_date(date_str):
+    """Convertit une date ISO 8601 en objet datetime (offset-aware)."""
+    try:
+        if date_str.endswith("Z"):  # UTC avec 'Z'
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+        date_obj = datetime.fromisoformat(date_str)
+        if date_obj.tzinfo is None:  # Pas de fuseau horaire
+            return date_obj.replace(tzinfo=timezone.utc)
+        return date_obj
+    except ValueError:
+        logging.warning(f"Format de date invalide : {date_str}")
+        return None
+
+def sort_by_date(files):
+    """Trie les fichiers par date de modification (offset-aware)."""
+    file_data = []
+
+    for name, info in files.items():
+        metadata = info.get("metadata", {})
+        if not isinstance(metadata, dict):
+            continue  # Ignorer si metadata n'est pas un dictionnaire
+
+        date_str = metadata.get("Last Modified Date") or metadata.get("Last Modified Time")
+        if date_str:
+            date_obj = parse_date(date_str)
+            if date_obj:
+                file_data.append({
+                    "name": name,
+                    "extension": info["extension"],
+                    "date": date_obj
+                })
+
+    # Trier par date
+    return sorted(file_data, key=lambda x: x["date"])
+
+
+# Calculer la composition des fichiers par extension
+def calculate_file_distribution(files):
+    total_files = len(files)
+    type_counts = Counter(info["extension"] for info in files.values() if "extension" in info)
+    percentage_distribution = {ext: round((count / total_files) * 100, 2) for ext, count in type_counts.items()}
+    return type_counts, percentage_distribution
+
+# Afficher les résultats
+def display_results(files, file_path):
+    sorted_files = sort_by_date(files)
+    
+    if not sorted_files:
+        print(" Aucun fichier valide trouvé avec des dates de modification.")
+        return
+    
+    # 3 plus anciens et 3 plus récents fichiers
+    oldest_files = sorted_files[:3]
+    newest_files = sorted_files[-3:]
+
+    # Distribution des fichiers
+    type_counts, percentage_distribution = calculate_file_distribution(files)
+
+    print(f"\n **Statistiques pour le fichier : {file_path}**")
+    show_results_window_stat(oldest_files, newest_files,type_counts,percentage_distribution,file_path)
+#####################################
+
+def show_results_window_stat(oldest_files, newest_files, type_counts, percentage_distribution, file_path):
+    """Affiche les résultats avec un histogramme montrant les 20 premières valeurs triées."""
+    stat_window = tk.Toplevel(app)
+    stat_window.title("Statistique de fichier")
+    stat_window.geometry("800x600")
+    stat_window.grab_set()  # Bloque l'interaction avec la fenêtre principale
+
+    # Zone de texte avec défilement
+    text_area = scrolledtext.ScrolledText(stat_window, wrap="word", height=15, width=80)
+    text_area.pack(expand=True, fill="both", padx=10, pady=10)
+
+    # Titre du fichier analysé
+    text_area.insert(tk.END, f"\n **Statistiques pour le fichier : {file_path}**\n")
+
+    # Affichage des 3 fichiers les plus anciens
+    text_area.insert(tk.END, "\n **3 Fichiers les Plus Anciens**\n\n")
+    for file in oldest_files:
+        try:
+            text_area.insert(tk.END, f" {file['name']} - {file['date']}\n")
+        except KeyError:
+            text_area.insert(tk.END, " Erreur: Informations manquantes pour un fichier.\n")
+
+    # Affichage des 3 fichiers les plus récents
+    text_area.insert(tk.END, "\n **3 Fichiers les Plus Récents**\n\n")
+    for file in newest_files:
+        try:
+            text_area.insert(tk.END, f" {file['name']} - {file['date']}\n")
+        except KeyError:
+            text_area.insert(tk.END, " Erreur: Informations manquantes pour un fichier.\n")
+
+    # Composition totale des fichiers (triée par ordre décroissant)
+    text_area.insert(tk.END, "\n **Composition Totale des Fichiers (Triée)**\n\n")
+    sorted_type_counts = sorted(type_counts.items(), key=lambda x: x[1], reverse=True)  # Tri par nombre décroissant
+
+    # Limiter à 20 éléments
+    top_20_type_counts = sorted_type_counts[:20]
+
+    for ext, count in top_20_type_counts:
+        percentage = percentage_distribution.get(ext, 0)
+        text_area.insert(tk.END, f" {ext}: {count} fichiers ({percentage}%)\n")
+
+    # Désactiver la zone de texte pour éviter les modifications
+    text_area.config(state="disabled")
+
+    # Création de l’histogramme avec Matplotlib
+    fig, ax = plt.subplots(figsize=(6, 4))
+    extensions = [ext for ext, _ in top_20_type_counts]  # Extensions des 20 premiers
+    counts = [count for _, count in top_20_type_counts]  # Nombres des 20 premiers
+    percentages = [percentage_distribution[ext] for ext in extensions]
+
+    bars = ax.bar(extensions, counts, color="skyblue")
+    ax.set_title("Top 20 Types de Fichiers")
+    ax.set_xlabel("Extensions de fichiers")
+    ax.set_ylabel("Nombre de fichiers")
+    ax.tick_params(axis="x", rotation=45)
+
+    # Ajouter les pourcentages directement sur les barres
+    for bar, percentage in zip(bars, percentages):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,  # Position X (au centre de la barre)
+            height / 2,  # Position Y (au milieu de la barre)
+            f"{percentage:.1f}%",  # Texte affiché
+            ha="center", va="center", fontsize=10, color="white"  # Texte centré et blanc
+        )
+
+    # Intégrer l’histogramme dans la fenêtre Tkinter
+    canvas = FigureCanvasTkAgg(fig, master=stat_window)
+    canvas_widget = canvas.get_tk_widget()
+    canvas_widget.pack(expand=True, fill="both", padx=10, pady=10)
+    canvas.draw()
+
+    # Bouton pour exporter en CSV
+    export_button = tk.Button(
+        stat_window,
+        text="Exporter en CSV",
+        command=lambda: export_to_csv(oldest_files, newest_files, type_counts, percentage_distribution)
+    )
+    export_button.pack(pady=10)
+  
+##################################################################    
 def on_save():
     #l(current_metadata)
     # NPO
