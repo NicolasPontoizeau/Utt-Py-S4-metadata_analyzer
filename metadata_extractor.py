@@ -39,7 +39,12 @@ import matplotlib.pyplot as plt
 def convert_json_to_csv(path_to_json):
     # input_file_path = "/home/nico/Dropbox/python/repo_git/Utt-Py-S4-metadata_analyzer/metadata_results_20250126_191931.json"
     input_file_path = path_to_json
-    output_file_path = input_file_path.replace(".json", ".csv")
+    # output_file_path = input_file_path.replace(".json", ".csv")
+    
+    """Exporte les résultats de la comparaison en CSV."""
+    csv_file_path = filedialog.asksaveasfilename(defaultextension=".csv",
+                                             filetypes=[("Fichiers CSV", "*.csv")],
+                                             title="Exprt JSON -> CSV")
 
     try:
         with open(input_file_path, "r") as json_file:
@@ -52,7 +57,8 @@ def convert_json_to_csv(path_to_json):
 
 
         # Flatten the data if necessary and write to a CSV file
-        with open(output_file_path, "w", newline="") as csv_file:
+        # with open(output_file_path, "w", newline="") as csv_file:
+        with open(csv_file_path, "w", newline="") as csv_file:
             writer = csv.writer(csv_file)
             # Write headers
             # writer.writerow(["Key", "Value"])
@@ -61,8 +67,8 @@ def convert_json_to_csv(path_to_json):
                 writer.writerow([key, value])
     
         # Afficher un message de succès
-        messagebox.showinfo("Succès", f"Fichier CSV enregistré avec succès :\n{output_file_path}")
-        print(f"fichier {path_to_json} converti en {output_file_path}")
+        messagebox.showinfo("Succès", f"Fichier CSV enregistré avec succès :\n{csv_file_path}")
+        print(f"fichier {path_to_json} converti en {csv_file_path}")
         
     except json.JSONDecodeError:
         messagebox.showerror("Erreur", "Le fichier JSON sélectionné est invalide.")
@@ -589,7 +595,6 @@ def export_csv():
     
    
 # Fonction chargement des données depuis json  
-# Fonction chargement des données depuis json  
 # NPO
 # Fonction chargement des données depuis json
 def chargement():
@@ -992,6 +997,9 @@ def on_save():
     # NPO
     global path_to_json
     path_to_json = save_metadata(current_metadata)
+    # NPO
+    # activer l'export csv
+    menu_export.entryconfig("CSV", state="normal")
 
 
 
@@ -1071,7 +1079,9 @@ scrollbar.pack(side="right", fill="y")
 results_text.config(yscrollcommand=scrollbar.set)
 results_text.config(state="disabled")
 
-
+# NPO
+# desactiver l'export csv
+menu_export.entryconfig("CSV", state="disabled")
 save_button = tk.Button(app, text="Enregistrer", command=on_save, state="disabled")
 save_button.pack(pady=5)
 
