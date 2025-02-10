@@ -22,7 +22,7 @@ from PIL.ExifTags import TAGS, GPSTAGS
 from PIL.TiffImagePlugin import IFDRational
 from pptx import Presentation
 import warnings
-import win32com.client
+# import win32com.client
 #import olefile
 from openpyxl import load_workbook
 from datetime import datetime
