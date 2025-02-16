@@ -101,6 +101,12 @@ MAGIC_BYTES = {
 
 
 
+def nettoyer_accolades(chaine):
+    if isinstance(chaine, str):
+        return chaine.replace('{', '').replace('}', '')
+    return chaine
+
+
 # NPO
 def convert_json_to_csv(path_to_json):
     # input_file_path = "/home/nico/Dropbox/python/repo_git/Utt-Py-S4-metadata_analyzer/metadata_results_20250126_191931.json"
@@ -123,7 +129,7 @@ def convert_json_to_csv(path_to_json):
 
 
         # Flatten the data if necessary and write to a CSV file
-        # with open(output_file_path, "w", newline="") as csv_file:
+       # Écrire les données dans le fichier CSV
         with open(csv_file_path, "w", newline="") as csv_file:
             writer = csv.writer(csv_file)
             # Write headers
@@ -131,6 +137,17 @@ def convert_json_to_csv(path_to_json):
             # Write rows
             for key, value in data.items():
                 writer.writerow([key, value])
+
+        # Lire le fichier CSV, nettoyer les accolades et réécrire le fichier
+        with open(csv_file_path, "r", newline="") as csv_file:
+            reader = csv.reader(csv_file)
+            rows = list(reader)
+
+        with open(csv_file_path, "w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            for row in rows:
+                nettoye_row = [nettoyer_accolades(cell) for cell in row]
+                writer.writerow(nettoye_row)
     
         # Afficher un message de succès
         messagebox.showinfo("Succès", f"Fichier CSV enregistré avec succès :\n{csv_file_path}")
