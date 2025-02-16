@@ -22,7 +22,7 @@ from PIL.ExifTags import TAGS, GPSTAGS
 from PIL.TiffImagePlugin import IFDRational
 from pptx import Presentation
 import warnings
-# import win32com.client
+import win32com.client
 #import olefile
 from openpyxl import load_workbook
 from datetime import datetime
@@ -32,6 +32,72 @@ from collections import Counter
 import logging
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+import zipfile
+import py7zr
+import rarfile
+import gzip
+import bz2
+
+
+# Magic bytes pour identifier différents types de fichiers
+MAGIC_BYTES = {
+    # Images
+    b'\xFF\xD8\xFF': 'JPEG Image',
+    b'\x89PNG\r\n\x1A\n': 'PNG Image',  # Correction du header PNG
+    b'GIF87a': 'GIF Image',
+    b'GIF89a': 'GIF Image',
+    b'BM': 'BMP Image',
+    b'\x49\x49\x2A\x00': 'TIFF Image (LE)',
+    b'\x4D\x4D\x00\x2A': 'TIFF Image (BE)',
+    b'RIFF....WEBP': 'WebP Image',
+
+    # Vidéos
+    b'\x00\x00\x00\x18ftypmp42': 'MP4 Video',
+    b'\x00\x00\x00\x14ftypisom': 'MP4 Video',
+    b'\x00\x00\x00\x18ftypavc1': 'MP4 Video',
+    b'\x1A\x45\xDF\xA3': 'MKV Video',
+    b'RIFF....AVI ': 'AVI Video',
+    b'0&\xB2u\x8E\x66\xCF\x11': 'ASF/WMV Video',
+
+    # Archives et formats compressés
+    b'PK\x03\x04': 'ZIP Archive',
+    b'PK\x05\x06': 'ZIP Archive (empty)',
+    b'PK\x07\x08': 'ZIP Archive (spanned)',
+    b'7z\xBC\xAF\x27\x1C': '7z Archive',
+    b'Rar!\x1A\x07\x00': 'RAR Archive v1.5',
+    b'Rar!\x1A\x07\x01\x00': 'RAR Archive v5',
+    b'\x1F\x8B\x08': 'GZIP Archive',
+    b'\x37\x7A\xBC\xAF\x27\x1C': '7z Archive',
+    b'\x42\x5A\x68': 'BZIP2 Archive',
+    
+     # Documents
+    b'%PDF-': 'PDF Document',
+    b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1': 'MS Office Document (OLE)',
+    b'PK\x03\x04': 'MS Office Document (OOXML)',  # DOCX, XLSX, PPTX
+    b'\x25\x21\x50\x53': 'PostScript Document',
+    
+    # Fichiers exécutables et systèmes
+    b'MZ': 'Windows Executable (EXE/DLL)',
+    b'\x7FELF': 'Linux Executable (ELF)',
+    b'\xCE\xFA\xED\xFE': 'Mach-O Executable (macOS)',
+    b'\xCF\xFA\xED\xFE': 'Mach-O Executable (macOS)',
+    
+    # Fichiers audio
+    b'ID3': 'MP3 Audio',
+    b'RIFF....WAVE': 'WAV Audio',
+    b'OggS': 'OGG Audio',
+    b'fLaC': 'FLAC Audio',
+    b'\xFF\xF1': 'AAC Audio',
+    b'\xFF\xF9': 'AAC Audio',
+
+    # Disques et systèmes de fichiers
+    b'\xEB\x3C\x90': 'FAT16 Boot Sector',
+    b'\xEB\x58\x90': 'FAT32 Boot Sector',
+    b'\xEB\x76\x90': 'exFAT Boot Sector',
+    b'\x4D\x53\x57\x49\x4D': 'Microsoft Windows Swap File',
+    b'\x43\x44\x30\x30\x31': 'ISO CD/DVD Image',
+    b'\x00\x01\x42\x44': 'ISO CD/DVD Image',
+}
 
 
 
@@ -132,6 +198,8 @@ def calculate_file_hash(file_path, algorithm="sha256"):
         return f"Erreur : L'algorithme '{algorithm}' n'est pas supporté."
     except Exception as e:
         return f"Erreur : {str(e)}"
+        
+        
 #    Retourne le type MIME d'un fichier en utilisant python-magic (basé sur le contenu binaire).
 #    Si python-magic échoue, utilise mimetypes comme fallback.
 def get_mime_type(file_path):
@@ -143,10 +211,21 @@ def get_mime_type(file_path):
         type_mime, _ = mimetypes.guess_type(file_path)
         type_mime, _ = mimetypes.guess_type(file_path)
         return type_mime or "unknown"
+
+
+def detect_file_type(file_path):
+    magic_type = identify_file(file_path)  # Vérification via Magic Bytes
+    if magic_type != "Unknown" and not magic_type.startswith("Error"):
+        return magic_type
+
+    # Si `identify_file` ne trouve rien, on essaye `get_mime_type`
+    return get_mime_type(file_path)
+
         
   
 # Fonction pour extraire les métadonnées des images 
 def get_image_metadata(image_path):
+    metadata = {}
     try:
         # Ouvrir l'image
         image = Image.open(image_path)
@@ -183,6 +262,7 @@ def get_image_metadata(image_path):
 
 # Fonctions pour extraire des métadonnées audio MP3, FLAC, WAV, AAC, et OGG.
 def get_audio_metadata(file_path):
+    metadata = {}
     audio = File(file_path)
     if not audio:
         return "Fichier audio non pris en charge."
@@ -199,6 +279,7 @@ def get_audio_metadata(file_path):
 
 # Fonction pour obtenir les métadonnées d'un PDF
 def get_pdf_metadata(file_path):
+    metadata = {}
     try:
         reader = PdfReader(file_path)
         metadata = reader.metadata
@@ -324,10 +405,137 @@ def extract_text_metadata(file_path):
         metadata = {"Erreur": f"Erreur lors du traitement de {file_path} : {str(e)}"}
     return metadata 
 
-  
+################################################################"
+
+
+def is_media_or_system_file(file_name):
+    """
+    Vérifie si un fichier a une extension supportée (images, vidéos, ou fichiers système).
+    """
+    _, ext = os.path.splitext(file_name.lower())
+    return (
+        #ext in EXTENSIONS['images'] or 
+        #ext in EXTENSIONS['videos'] or 
+        ext in EXTENSIONS['system']
+    )
+    
+
+############################
+
+# Extensions des fichiers à analyser
+EXTENSIONS = {
+    'system': ['.sys', '.dll', '.exe', '.bat', '.sh']
+}
+
+
+##Vérifie si un fichier appartient aux types système définis.
+def is_system_file(file_name):
+    _, ext = os.path.splitext(file_name.lower())
+    return ext in EXTENSIONS['system']
+
+## Identifie le type de fichier en lisant les magic bytes.
+def identify_file(file_path):
+    
+    try:
+        with open(file_path, 'rb') as file:
+            header = file.read(16)
+            for magic, file_type in MAGIC_BYTES.items():
+                if header.startswith(magic):
+                    return file_type
+        return "Unknown"
+    except PermissionError:
+        return "Error: Permission denied"
+    except FileNotFoundError:
+        return "Error: File not accessible"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+##Extrait les métadonnées d'un fichier système.
+def extract_sys_metadata(file_path):
+    try:
+        file_size = os.path.getsize(file_path)
+        file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
+
+        # Identifier le type du fichier une seule fois
+        file_type = identify_file(file_path)
+        if file_type in ["Unknown", "Error"] and is_system_file(os.path.basename(file_path)):
+            file_type = "System File"
+
+        metadata = {
+            "name": os.path.basename(file_path),
+            "path": file_path,
+            "type": file_type,
+            "size": file_size,
+            "modification_time": file_mtime
+        }
+
+        return metadata
+    except Exception as e:
+        return {"error": str(e)}
+
+
+########################################################################################
+##########################################################################################""  
+
+def detect_archive_type(file_path):
+    """Détecte le type d'archive en fonction de son magic number."""
+    with open(file_path, 'rb') as f:
+        file_header = f.read(8)  # Lire les 8 premiers octets
+        for magic, archive_type in MAGIC_BYTES.items():
+            if file_header.startswith(magic):
+                return archive_type
+    return "Format inconnu"
+
+
+def get_zip_metadata(file_path):
+    metadata = {}
+    #print("Je rentre ici")
+    if not os.path.isfile(file_path):
+        return {"error": "Fichier introuvable"}
+
+    #print("Je construit la metadata ")
+    metadata = {
+        "nom_fichier": os.path.basename(file_path),
+        "taille": os.path.getsize(file_path),  # Taille du fichier ZIP en octets
+        "date_modification": os.path.getmtime(file_path),  # Timestamp UNIX
+        "date_creation": os.path.getctime(file_path),  # Timestamp UNIX (Windows)
+    }
+
+    return metadata
+
+
+#########################################"
+
+def get_archive_metadata(file_path):
+    metadata = {}
+    """Récupère les métadonnées d'un fichier ZIP ou 7z."""
+    #print(" Vérification du fichier...")
+
+    if not os.path.isfile(file_path):
+        #print(" Fichier introuvable !")
+        return {"error": "Fichier introuvable"}
+
+    file_type = detect_file_type(file_path)
+    #print(f" Type détecté : {file_type}")
+
+    if file_type == "Inconnu":
+        return {"error": "Format non reconnu"}
+
+    metadata = {
+        "nom_fichier": os.path.basename(file_path),
+        "type": file_type,
+        "taille": os.path.getsize(file_path),  # Taille en octets
+        "date_modification": datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S'),
+        "date_creation": datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S'),
+    }
+       
+    #print(" Métadonnées récupérées avec succès !")
+    return metadata
+
+
     
 # Fonction pour extraire les métadonnées
-def extract_metadata(directory, selected_types, selectionsGloabale, deep_search=False):
+def extract_metadata(directory, selectionsGloabale, deep_search=False):
     metadata_results = {}
     if deep_search:
         all_files = [os.path.join(root, file) 
@@ -346,10 +554,9 @@ def extract_metadata(directory, selected_types, selectionsGloabale, deep_search=
     for index, file_path in enumerate(all_files):
         if os.path.isfile(file_path):
             filename = os.path.basename(file_path)
-            #print("Le type MIME de %s est : %s" % (file_path, get_mime_type(file_path)))
             ext = os.path.splitext(filename)[1].lower()  # Obtenir l'extension
-            mime_type = get_mime_type(file_path)  # Obtenir le type MIME via python-magic
-            # ajouter le calcul de has_key
+            mime_type1 = get_mime_type(file_path)  # Obtenir le type MIME via python-magic
+            mime_type = detect_file_type(file_path)
             has_code= calculate_file_hash(file_path)
             try:
                 
@@ -359,25 +566,34 @@ def extract_metadata(directory, selected_types, selectionsGloabale, deep_search=
                     "hash_code":has_code,
                     "metadata": None
                 }
-                if ("audio" in mime_type and "audio" in selected_types):
+                if ("audio" in mime_type ) : 
                     metadata_results[filename]["metadata"] = get_audio_metadata(file_path)
-                elif ("image" in mime_type or "octet-stream" in mime_type and "image" in selected_types):
+                elif ("image" in mime_type) : ## or "octet-stream" in mime_type ): 
                     metadata_results[filename]["metadata"] = get_image_metadata(file_path)
-                elif ("pdf" in mime_type and "pdf" in selected_types):
+                elif ("PDF" in mime_type): # and "pdf" in selected_types):
                     metadata_results[filename]["metadata"] = get_pdf_metadata(file_path)
-                elif ("word" in mime_type and "word" in selected_types):
+                elif ("MS Office" in mime_type ): #and "word" in selected_types):
                     metadata_results[filename]["metadata"] = extract_ms_office_metadata(file_path,ext)
-                elif ("excel" in mime_type or ext==".xlsx" and "excel" in selected_types):
+                #elif ("excel" in mime_type or ext==".xlsx" and "excel" in selected_types):
+                    #print("Le type MIME de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
+                #    metadata_results[filename]["metadata"] = extract_ms_office_metadata(file_path,ext)
+                elif ("PostScript" in mime_type ) :## and ext == ".pptx" and "powerpoint" in selected_types):
                     #print("Le type MIME de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
                     metadata_results[filename]["metadata"] = extract_ms_office_metadata(file_path,ext)
-                elif ("presentation" in mime_type and ext == ".pptx" and "powerpoint" in selected_types):
-                    #print("Le type MIME de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
-                    metadata_results[filename]["metadata"] = extract_ms_office_metadata(file_path,ext)
-                elif ("video" in mime_type and "video" in selected_types):
+                elif ("video" in mime_type ): ##and "video" in selected_types):
                     metadata_results[filename]["metadata"] = get_video_metadata(file_path)
-                elif ("text" in mime_type and "text" in selected_types):
+                elif ("text" in mime_type  ) : #and "text" in selected_types):
                     metadata_results[filename]["metadata"] = extract_text_metadata(file_path)
                     #print("Le type MIME de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
+                elif ("EXE/DLL" in mime_type) : # and "text" in selected_types):
+                    metadata_results[filename]["metadata"] = extract_sys_metadata(file_path)
+                    #print("Le type MIME de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
+                elif ("Archive" in mime_type ) : # and "text" in selected_types):
+                    #print("Le type MIME interne de %s est : %s et exten %s" % (file_path, detect_file_type(file_path),ext))
+                    metadata_results[filename]["metadata"] = get_archive_metadata(file_path)
+                    #print("Le type MIME interne de %s est : %s et exten %s" % (file_path, get_mime_type(file_path),ext))
+                    #print("Le type MIME de %s est : %s et exten %s" % (file_path, mime_type))
+                    
                 else:
                     metadata_results[filename]["metadata"] = {"Erreur": "Format non pris en charge"}
             except Exception as e:
@@ -520,31 +736,13 @@ def select_directory():
             return
         else : 
             extensions = lister_extensions(directory)
-            print("La liste des extensions est : %s " % (extensions))
+            #print("La liste des extensions est : %s " % (extensions))
             fenetre_filtre(extensions, app, selectionsGloabale)
-            print("Extensions sélectionnées  selectinons :", selectionsGloabale)
+            #print("Extensions sélectionnées  selectinons :", selectionsGloabale)
         
-        selected_types = []
-        #if audio_var.get():
-        selected_types.append("audio")
-        #if image_var.get():
-        selected_types.append("image")
-        #if pdf_var.get():
-        selected_types.append("pdf")
-        #if word_var.get():
-        selected_types.append("word")
-        selected_types.append("powerpoint")
-        #if excel_var.get():
-        selected_types.append("excel")
-        #if video_var.get():
-        selected_types.append("video")
-        #selected_types = []
-        #if audio_var.get():
-        selected_types.append("audio")
-        selected_types.append("text")
-                
+            
         deep_search = deep_search_var.get()
-        metadata = extract_metadata(directory, selected_types, selectionsGloabale, deep_search)
+        metadata = extract_metadata(directory, selectionsGloabale, deep_search)
         results_text.config(state="normal")
         results_text.delete(1.0, tk.END)
         for filename, meta in metadata.items():
@@ -565,7 +763,7 @@ def nouvelle_analyse():
     results_text.delete(1.0, tk.END)
     file_menu.entryconfig("Ouvrir un répertoire", state=tk.NORMAL)
     # Afficher un message dans la console
-    print("Nouvelle analyse déclenchée.")
+    #print("Nouvelle analyse déclenchée.")
     
     # Ajouter un texte par défaut dans le widget
     #results_text.insert(tk.END, "Analyse réinitialisée.\n")
@@ -594,6 +792,7 @@ def export_csv():
         print("Le fichier json doit etre enregistré avant de le convertir en csv")
     
    
+# Fonction chargement des données depuis json  
 # Fonction chargement des données depuis json  
 # NPO
 # Fonction chargement des données depuis json
@@ -630,7 +829,7 @@ def chargement():
         path_to_json = file_path
         results_text.config(state="disabled")    
 
-        print(f"fichier .json sélectionné : {path_to_json} chargé")
+        #print(f"fichier .json sélectionné : {path_to_json} chargé")
         
         # activer l'export csv
         menu_export.entryconfig("CSV", state="normal")
@@ -839,10 +1038,10 @@ def load_json(file_path):
         with open(file_path, "r", encoding="utf-8") as file:
             return json.load(file), file_path
     except FileNotFoundError:
-        print(f" Fichier introuvable: {file_path}. Vérifiez le chemin et réessayez.")
+        #print(f" Fichier introuvable: {file_path}. Vérifiez le chemin et réessayez.")
         return None, None
     except json.JSONDecodeError:
-        print(f" Erreur lors du chargement du fichier JSON: {file_path}. Vérifiez qu'il est valide.")
+        #print(f" Erreur lors du chargement du fichier JSON: {file_path}. Vérifiez qu'il est valide.")
         return None, None
     
 
@@ -897,7 +1096,7 @@ def display_results(files, file_path):
     sorted_files = sort_by_date(files)
     
     if not sorted_files:
-        print(" Aucun fichier valide trouvé avec des dates de modification.")
+        #print(" Aucun fichier valide trouvé avec des dates de modification.")
         return
     
     # 3 plus anciens et 3 plus récents fichiers
